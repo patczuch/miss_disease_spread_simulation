@@ -1,6 +1,7 @@
 import pygame, sys
 import numpy as np
 from enum import Enum
+import csv
 
 # global settings
 boundary = [600, 600]
@@ -122,36 +123,61 @@ class Simulation:
 
         clock = pygame.time.Clock()
 
-        while True:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    sys.exit()
+        csvfile = open('simulation_stats.csv', 'w', newline='')
+        writer = csv.writer(csvfile)
+        writer.writerow(['frame', 'healthy', 'sick', 'recovered', 'dead_this_frame', 'total_deaths'])
+        frame_count = 0
+        total_deaths = 0
+        try:
+            while True:
+                for event in pygame.event.get():
+                    if event.type == pygame.QUIT:
+                        sys.exit()
 
-            # Update people
-            for person in self.people:
-                person.update()
+                # Update people
+                for person in self.people:
+                    person.update()
 
-            self.people = [person for person in self.people if person.state != PersonState.DEAD]
+                prev_count = len(self.people)
+                self.people = [person for person in self.people if person.state != PersonState.DEAD]
+                dead_this_frame = prev_count - len(self.people)
+                total_deaths += dead_this_frame
 
+                healthy = 0
+                sick = 0
+                recovered = 0
 
-            # Check for collisions
-            for person1 in self.people:
-                for person2 in self.people:
-                    if pygame.sprite.collide_rect(person1, person2):
-                        if person1.state == PersonState.SICK and person2.state == PersonState.HEALTHY:
-                            person2.state = PersonState.SICK
+                for person in self.people:
+                    if person.state == PersonState.HEALTHY:
+                        healthy += 1
+                    elif person.state == PersonState.SICK:
+                        sick += 1
+                    elif person.state == PersonState.RECOVERED:
+                        recovered += 1
 
-            screen.fill(Color.WHITE.value)
+                writer.writerow([frame_count, healthy, sick, recovered, dead_this_frame, total_deaths])
+                csvfile.flush()
+                frame_count += 1
 
-            # Draw people
-            for person in self.people:
-                person.render()
-                screen.blit(person.image, person.rect)
+                # Check for collisions
+                for person1 in self.people:
+                    for person2 in self.people:
+                        if pygame.sprite.collide_rect(person1, person2):
+                            if person1.state == PersonState.SICK and person2.state == PersonState.HEALTHY:
+                                person2.state = PersonState.SICK
 
-            clock.tick(30)
-            pygame.display.flip()
+                screen.fill(Color.WHITE.value)
 
-        pygame.quit()
+                # Draw people
+                for person in self.people:
+                    person.render()
+                    screen.blit(person.image, person.rect)
+
+                clock.tick(30)
+                pygame.display.flip()
+        finally:
+            csvfile.close()
+            pygame.quit()
 
 
 if __name__ == "__main__":
