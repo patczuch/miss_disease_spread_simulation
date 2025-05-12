@@ -1,17 +1,22 @@
-import pygame, sys
+import pygame
+import sys
 import numpy as np
+import datetime
 from enum import Enum
 import csv
+import argparse
 
 # global settings
-boundary = [600, 600]
-mortality_rate = 0.5
-death_time = 300
-n_healthy = 40
-n_infected = 10
-n_recovered = 3
-
-person_size = 20
+boundary = None
+mortality_rate = None
+death_time = None
+susceptible_again_time = None
+n_susceptible = None
+n_infected = None
+n_recovered = None
+person_size = None
+recovered_enabled = None  # SIS / SIRS switch
+fast_mode = None
 
 
 class Color(Enum):
@@ -22,8 +27,8 @@ class Color(Enum):
 
 
 class PersonState(Enum):
-    HEALTHY = 1
-    SICK = 2
+    SUSCEPTIBLE = 1
+    INFECTED = 2
     RECOVERED = 3
     DEAD = 4
 
@@ -32,7 +37,6 @@ class Person(pygame.sprite.Sprite):
     def __init__(self, pos, state):
         super().__init__()
 
-        global person_size
         self.image = pygame.Surface([person_size, person_size], pygame.SRCALPHA)
 
         self.pos = pos
@@ -41,14 +45,13 @@ class Person(pygame.sprite.Sprite):
         self.vel = [0, 0]
         self.rect = self.image.get_rect()
 
-        global death_time
         self.death_timer = death_time
+
+        self.susceptible_again_timer = susceptible_again_time
 
     def update(self):
         self.pos[0] += self.vel[0]
         self.pos[1] += self.vel[1]
-
-        global boundary
 
         if self.pos[0] < 0:
             self.pos[0] = 0
@@ -68,20 +71,29 @@ class Person(pygame.sprite.Sprite):
             self.vel /= vel_norm
         self.vel += np.random.rand(2) * 2 - 1
 
-        if self.state == PersonState.SICK:
+        if self.state == PersonState.INFECTED:
             self.death_timer -= 1
             if self.death_timer <= 0:
-                global mortality_rate
                 if mortality_rate > np.random.rand():
                     self.state = PersonState.DEAD
                 else:
-                    self.state = PersonState.RECOVERED
+                    if recovered_enabled:
+                        self.state = PersonState.RECOVERED
+                    else:
+                        self.state = PersonState.SUSCEPTIBLE
+                    self.death_timer = death_time
+
+        if self.state == PersonState.RECOVERED:
+            self.susceptible_again_timer -= 1
+            if self.susceptible_again_timer <= 0:
+                self.state = PersonState.SUSCEPTIBLE
+                self.susceptible_again_timer = susceptible_again_time
 
     def render(self):
         color = Color.WHITE
-        if self.state == PersonState.HEALTHY:
+        if self.state == PersonState.SUSCEPTIBLE:
             color = Color.GREEN
-        elif self.state == PersonState.SICK:
+        elif self.state == PersonState.INFECTED:
             color = Color.RED
         elif self.state == PersonState.RECOVERED:
             color = Color.BLUE
@@ -97,8 +109,6 @@ class Simulation:
         self.people = []
 
     def spawn_random_person(self, state):
-        global boundary
-        global person_size
         self.people.append(Person([np.random.randint(0, boundary[0] - person_size),
                                    np.random.randint(0, boundary[1] - person_size)], state))
 
@@ -106,26 +116,37 @@ class Simulation:
 
         pygame.init()
 
-        global boundary
         screen = pygame.display.set_mode(boundary)
 
-        global n_healthy
-        for _ in range(n_healthy):
-            self.spawn_random_person(PersonState.HEALTHY)
+        for _ in range(n_susceptible):
+            self.spawn_random_person(PersonState.SUSCEPTIBLE)
 
-        global n_infected
         for _ in range(n_infected):
-            self.spawn_random_person(PersonState.SICK)
+            self.spawn_random_person(PersonState.INFECTED)
 
-        global n_recovered
-        for _ in range(n_recovered):
-            self.spawn_random_person(PersonState.RECOVERED)
+        if recovered_enabled:
+            for _ in range(n_recovered):
+                self.spawn_random_person(PersonState.RECOVERED)
 
         clock = pygame.time.Clock()
 
-        csvfile = open('simulation_stats.csv', 'w', newline='')
+        d = datetime.datetime.now()
+
+        csvfile = open('simulation_stats-{date:%Y-%m-%d_%H_%M_%S}.csv'.format(date=d), 'w', newline='')
         writer = csv.writer(csvfile)
-        writer.writerow(['frame', 'healthy', 'sick', 'recovered', 'dead_this_frame', 'total_deaths'])
+        writer.writerow(['frame', 'susceptible', 'infected', 'recovered', 'dead_this_frame', 'total_deaths'])
+
+        parametersfile = open('simulation_parameters-{date:%Y-%m-%d_%H_%M_%S}.txt'.format(date=d), 'w', newline='')
+        parametersfile.write("boundary " + str(boundary) +
+                            "\nmortality_rate " + str(mortality_rate) +
+                            "\ndeath_time " + str(death_time) +
+                            "\nsusceptible_again_time " + str(susceptible_again_time) +
+                            "\nn_susceptible " + str(n_susceptible) +
+                            "\nn_infected " + str(n_infected) +
+                            "\nn_recovered " + str(n_recovered) +
+                            "\nperson_size " + str(person_size) +
+                            "\nrecovered_enabled " + str(recovered_enabled) +
+                            "\nfast_mode " + str(fast_mode))
         frame_count = 0
         total_deaths = 0
         try:
@@ -143,19 +164,19 @@ class Simulation:
                 dead_this_frame = prev_count - len(self.people)
                 total_deaths += dead_this_frame
 
-                healthy = 0
-                sick = 0
+                susceptible = 0
+                infected = 0
                 recovered = 0
 
                 for person in self.people:
-                    if person.state == PersonState.HEALTHY:
-                        healthy += 1
-                    elif person.state == PersonState.SICK:
-                        sick += 1
+                    if person.state == PersonState.SUSCEPTIBLE:
+                        susceptible += 1
+                    elif person.state == PersonState.INFECTED:
+                        infected += 1
                     elif person.state == PersonState.RECOVERED:
                         recovered += 1
 
-                writer.writerow([frame_count, healthy, sick, recovered, dead_this_frame, total_deaths])
+                writer.writerow([frame_count, susceptible, infected, recovered, dead_this_frame, total_deaths])
                 csvfile.flush()
                 frame_count += 1
 
@@ -163,8 +184,8 @@ class Simulation:
                 for person1 in self.people:
                     for person2 in self.people:
                         if pygame.sprite.collide_rect(person1, person2):
-                            if person1.state == PersonState.SICK and person2.state == PersonState.HEALTHY:
-                                person2.state = PersonState.SICK
+                            if person1.state == PersonState.INFECTED and person2.state == PersonState.SUSCEPTIBLE:
+                                person2.state = PersonState.INFECTED
 
                 screen.fill(Color.WHITE.value)
 
@@ -173,12 +194,42 @@ class Simulation:
                     person.render()
                     screen.blit(person.image, person.rect)
 
-                clock.tick(30)
+                if not fast_mode:
+                    clock.tick(30)
                 pygame.display.flip()
         finally:
+            parametersfile.close()
             csvfile.close()
             pygame.quit()
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Simulation Configuration")
+
+    parser.add_argument("--boundary", nargs=2, type=int, default=[600, 600], help="Simulation boundary as width height")
+    parser.add_argument("--mortality_rate", type=float, default=0.5, help="Mortality rate (0.0 to 1.0)")
+    parser.add_argument("--death_time", type=int, default=300, help="Time until death for infected individuals")
+    parser.add_argument("--susceptible_again_time", type=int, default=300,
+                        help="Time after which recovered become susceptible")
+    parser.add_argument("--n_susceptible", type=int, default=40, help="Initial number of susceptible individuals")
+    parser.add_argument("--n_infected", type=int, default=10, help="Initial number of infected individuals")
+    parser.add_argument("--n_recovered", type=int, default=3, help="Initial number of recovered individuals")
+    parser.add_argument("--person_size", type=int, default=20, help="Size of each person in the simulation")
+    parser.add_argument("--recovered_enabled", type=bool, default=True,
+                        help="Enable recovered state (True for SIRS, False for SIS)")
+    parser.add_argument("--fast_mode", type=bool, default=True, help="Enable fast mode")
+
+    args = parser.parse_args()
+
+    boundary = args.boundary
+    mortality_rate = args.mortality_rate
+    death_time = args.death_time
+    susceptible_again_time = args.susceptible_again_time
+    n_susceptible = args.n_susceptible
+    n_infected = args.n_infected
+    n_recovered = args.n_recovered
+    person_size = args.person_size
+    recovered_enabled = args.recovered_enabled
+    fast_mode = args.fast_mode
+
     Simulation().start()
