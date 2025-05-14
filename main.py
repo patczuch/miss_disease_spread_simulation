@@ -17,6 +17,10 @@ n_recovered = None
 person_size = None
 recovered_enabled = None  # SIS / SIRS switch
 fast_mode = None
+exsposed_enabled = None # E toggle
+incubation_time = None
+quarantine_percentage = None 
+
 
 
 class Color(Enum):
@@ -24,6 +28,7 @@ class Color(Enum):
     RED = (255, 0, 0)
     BLUE = (0, 0, 255)
     WHITE = (255, 255, 255)
+    YELLOW = (255, 255, 0) # EXPOSED
 
 
 class PersonState(Enum):
@@ -31,6 +36,7 @@ class PersonState(Enum):
     INFECTED = 2
     RECOVERED = 3
     DEAD = 4
+    EXPOSED = 5
 
 
 class Person(pygame.sprite.Sprite):
@@ -49,29 +55,47 @@ class Person(pygame.sprite.Sprite):
 
         self.susceptible_again_timer = susceptible_again_time
 
+        self.incubation_timer = incubation_time
+        self.is_quarantined = False
+
     def update(self):
-        self.pos[0] += self.vel[0]
-        self.pos[1] += self.vel[1]
+        if self.is_quarantined:
+            self.vel = [0, 0]
+        else:
+            self.pos[0] += self.vel[0]
+            self.pos[1] += self.vel[1]
 
-        if self.pos[0] < 0:
-            self.pos[0] = 0
-        elif self.pos[0] > boundary[0] - person_size:
-            self.pos[0] = boundary[0] - person_size
+            if self.pos[0] < 0:
+                self.pos[0] = 0
+            elif self.pos[0] > boundary[0] - person_size:
+                self.pos[0] = boundary[0] - person_size
 
-        if self.pos[1] < 0:
-            self.pos[1] = 0
-        elif self.pos[1] > boundary[1] - person_size:
-            self.pos[1] = boundary[1] - person_size
+            if self.pos[1] < 0:
+                self.pos[1] = 0
+            elif self.pos[1] > boundary[1] - person_size:
+                self.pos[1] = boundary[1] - person_size
 
-        self.rect.x = self.pos[0]
-        self.rect.y = self.pos[1]
+            self.rect.x = self.pos[0]
+            self.rect.y = self.pos[1]
 
-        vel_norm = np.linalg.norm(self.vel)
-        if vel_norm > 3:
-            self.vel /= vel_norm
-        self.vel += np.random.rand(2) * 2 - 1
+            vel_norm = np.linalg.norm(self.vel)
+            if vel_norm > 3:
+                self.vel /= vel_norm
+            self.vel += np.random.rand(2) * 2 - 1
+
+        if self.state == PersonState.EXPOSED:
+            self.incubation_timer -= 1
+            if self.incubation_timer <= 0:
+                self.state = PersonState.INFECTED
+                self.death_timer = death_time
+            if np.random.rand() < quarantine_percentage:
+                self.is_quarantined = True
+                self.vel = [0, 0]
 
         if self.state == PersonState.INFECTED:
+            if np.random.rand() < quarantine_percentage:
+                self.is_quarantined = True
+                self.vel = [0, 0]
             self.death_timer -= 1
             if self.death_timer <= 0:
                 if mortality_rate > np.random.rand():
@@ -84,6 +108,7 @@ class Person(pygame.sprite.Sprite):
                     self.death_timer = death_time
 
         if self.state == PersonState.RECOVERED:
+            self.is_quarantined = False
             self.susceptible_again_timer -= 1
             if self.susceptible_again_timer <= 0:
                 self.state = PersonState.SUSCEPTIBLE
@@ -97,6 +122,8 @@ class Person(pygame.sprite.Sprite):
             color = Color.RED
         elif self.state == PersonState.RECOVERED:
             color = Color.BLUE
+        elif self.state == PersonState.EXPOSED:
+            color = Color.YELLOW
 
         self.image.fill((0, 0, 0, 0))
         pygame.draw.circle(
@@ -134,7 +161,7 @@ class Simulation:
 
         csvfile = open('simulation_stats-{date:%Y-%m-%d_%H_%M_%S}.csv'.format(date=d), 'w', newline='')
         writer = csv.writer(csvfile)
-        writer.writerow(['frame', 'susceptible', 'infected', 'recovered', 'dead_this_frame', 'total_deaths'])
+        writer.writerow(['frame', 'susceptible', 'exposed', 'infected', 'recovered', 'dead_this_frame', 'total_deaths'])
 
         parametersfile = open('simulation_parameters-{date:%Y-%m-%d_%H_%M_%S}.txt'.format(date=d), 'w', newline='')
         parametersfile.write("boundary " + str(boundary) +
@@ -146,7 +173,12 @@ class Simulation:
                             "\nn_recovered " + str(n_recovered) +
                             "\nperson_size " + str(person_size) +
                             "\nrecovered_enabled " + str(recovered_enabled) +
-                            "\nfast_mode " + str(fast_mode))
+                            "\nfast_mode " + str(fast_mode) +
+                            "\nexsposed_enabled " + str(exsposed_enabled) +
+                            "\nincubation_time " + str(incubation_time) +
+                            "\nquarantine_percentage " + str(quarantine_percentage)
+                            )
+        
         frame_count = 0
         total_deaths = 0
         try:
@@ -165,18 +197,21 @@ class Simulation:
                 total_deaths += dead_this_frame
 
                 susceptible = 0
+                exposed = 0
                 infected = 0
                 recovered = 0
 
                 for person in self.people:
                     if person.state == PersonState.SUSCEPTIBLE:
                         susceptible += 1
+                    elif person.state == PersonState.EXPOSED:
+                        exposed += 1
                     elif person.state == PersonState.INFECTED:
                         infected += 1
                     elif person.state == PersonState.RECOVERED:
                         recovered += 1
 
-                writer.writerow([frame_count, susceptible, infected, recovered, dead_this_frame, total_deaths])
+                writer.writerow([frame_count, susceptible, exposed, infected, recovered, dead_this_frame, total_deaths])
                 csvfile.flush()
                 frame_count += 1
 
@@ -185,7 +220,11 @@ class Simulation:
                     for person2 in self.people:
                         if pygame.sprite.collide_rect(person1, person2):
                             if person1.state == PersonState.INFECTED and person2.state == PersonState.SUSCEPTIBLE:
-                                person2.state = PersonState.INFECTED
+                                if exsposed_enabled:
+                                    person2.state = PersonState.EXPOSED
+                                    person2.incubation_timer = incubation_time
+                                else:
+                                    person2.state = PersonState.INFECTED
 
                 screen.fill(Color.WHITE.value)
 
@@ -202,6 +241,15 @@ class Simulation:
             csvfile.close()
             pygame.quit()
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("yes", "True", "true", "t", "1"):
+        return True
+    elif v.lower() in ("no", "False", "false", "f", "0"):
+        return False
+    else:
+        raise argparse.ArgumentTypeError("Boolean value expected.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Simulation Configuration")
@@ -215,9 +263,12 @@ if __name__ == "__main__":
     parser.add_argument("--n_infected", type=int, default=10, help="Initial number of infected individuals")
     parser.add_argument("--n_recovered", type=int, default=3, help="Initial number of recovered individuals")
     parser.add_argument("--person_size", type=int, default=20, help="Size of each person in the simulation")
-    parser.add_argument("--recovered_enabled", type=bool, default=True,
+    parser.add_argument("--recovered_enabled", type=str2bool, default=True,
                         help="Enable recovered state (True for SIRS, False for SIS)")
-    parser.add_argument("--fast_mode", type=bool, default=True, help="Enable fast mode")
+    parser.add_argument("--fast_mode", type=str2bool, default=True, help="Enable fast mode")
+    parser.add_argument("--exsposed_enabled", type=str2bool, default=False, help="Enable exposed agent state")
+    parser.add_argument("--incubation_time", type=int, default=150, help="Time for exposed to preocress into infected")
+    parser.add_argument("--quarantine_percentage", type=float, default=0, help="Percentage of newly infected agents (upon S->E or S->I transition) to be immediately quarantined (stop moving) (0-1).")
 
     args = parser.parse_args()
 
@@ -231,5 +282,8 @@ if __name__ == "__main__":
     person_size = args.person_size
     recovered_enabled = args.recovered_enabled
     fast_mode = args.fast_mode
+    exsposed_enabled = args.exsposed_enabled 
+    incubation_time = args.incubation_time
+    quarantine_percentage = args.quarantine_percentage
 
     Simulation().start()
