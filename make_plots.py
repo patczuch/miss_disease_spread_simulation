@@ -34,7 +34,8 @@ def plot_simulation(stats_file, params_file, output_dir="plots"):
     plt.xlabel('Day')
     plt.ylabel('People')
 
-    sim_type = "SIS"
+    if not params["recovered_enabled"] and not params["exposed_enabled"]:
+        sim_type = "SIS"
     if params["recovered_enabled"] and params["exposed_enabled"]:
         sim_type = "SEIR"
     elif params["recovered_enabled"]:
