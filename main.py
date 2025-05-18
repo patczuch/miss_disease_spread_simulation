@@ -17,7 +17,7 @@ n_recovered = None
 person_size = None
 recovered_enabled = None  # SIS / SIRS switch
 fast_mode = None
-exsposed_enabled = None # E toggle
+exposed_enabled = None # E toggle
 incubation_time = None
 quarantine_percentage = None 
 
@@ -174,7 +174,7 @@ class Simulation:
                             "\nperson_size " + str(person_size) +
                             "\nrecovered_enabled " + str(recovered_enabled) +
                             "\nfast_mode " + str(fast_mode) +
-                            "\nexsposed_enabled " + str(exsposed_enabled) +
+                            "\nexposed_enabled " + str(exposed_enabled) +
                             "\nincubation_time " + str(incubation_time) +
                             "\nquarantine_percentage " + str(quarantine_percentage)
                             )
@@ -220,7 +220,7 @@ class Simulation:
                     for person2 in self.people:
                         if pygame.sprite.collide_rect(person1, person2):
                             if person1.state == PersonState.INFECTED and person2.state == PersonState.SUSCEPTIBLE:
-                                if exsposed_enabled:
+                                if exposed_enabled:
                                     person2.state = PersonState.EXPOSED
                                     person2.incubation_timer = incubation_time
                                 else:
@@ -266,7 +266,7 @@ if __name__ == "__main__":
     parser.add_argument("--recovered_enabled", type=str2bool, default=True,
                         help="Enable recovered state (True for SIRS, False for SIS)")
     parser.add_argument("--fast_mode", type=str2bool, default=True, help="Enable fast mode")
-    parser.add_argument("--exsposed_enabled", type=str2bool, default=False, help="Enable exposed agent state")
+    parser.add_argument("--exposed_enabled", type=str2bool, default=False, help="Enable exposed agent state")
     parser.add_argument("--incubation_time", type=int, default=150, help="Time for exposed to preocress into infected")
     parser.add_argument("--quarantine_percentage", type=float, default=0, help="Percentage of newly infected agents (upon S->E or S->I transition) to be immediately quarantined (stop moving) (0-1).")
 
@@ -282,7 +282,7 @@ if __name__ == "__main__":
     person_size = args.person_size
     recovered_enabled = args.recovered_enabled
     fast_mode = args.fast_mode
-    exsposed_enabled = args.exsposed_enabled 
+    exposed_enabled = args.exposed_enabled
     incubation_time = args.incubation_time
     quarantine_percentage = args.quarantine_percentage
 

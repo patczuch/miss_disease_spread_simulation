@@ -1,4 +1,5 @@
 venv/
+plots/
 .idea/
 simulation_stats*.csv
 simulation_parameters*.txt
