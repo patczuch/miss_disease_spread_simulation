@@ -38,7 +38,7 @@ def plot_simulation(stats_file, params_file, output_dir="plots"):
     if not params["recovered_enabled"] and not params["exposed_enabled"]:
         sim_type = "SIS"
     elif params["recovered_enabled"] and params["exposed_enabled"]:
-        sim_type = "SEIR"
+        sim_type = "SEIRS"
     elif params["recovered_enabled"]:
         sim_type = "SIRS"
     else:
@@ -46,15 +46,16 @@ def plot_simulation(stats_file, params_file, output_dir="plots"):
         exit(0)
 
     recovered_info = f"recovered={params['n_recovered']}, \n" if params.get('recovered_enabled', True) else "\n"
+    incubation_info = f"incubation_time={params['incubation_time']}, " if params.get('exposed_enabled', True) else ""
 
     plt.title(f"{sim_type} \n"
               f"susceptible={params['n_susceptible']}, " +
-              f"infected={params['n_infected']}, " +
-              recovered_info +
+              f"infected={params['n_infected']}\n" +
+              #recovered_info +
               f"mortality_rate={params['mortality_rate']}, " +
-              f"death_time={params['death_time']}, " +
+              f"death_time={params['death_time']}, \n" +
               f"susceptible_again_time={params['susceptible_again_time']}, \n" +
-              f"incubation_time={params['incubation_time']}, " +
+              incubation_info +
               f"quarantine={params['quarantine_percentage']}%"
               )
     plt.legend()
