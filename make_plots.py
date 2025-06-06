@@ -6,6 +6,7 @@ import pandas as pd
 
 def read_parameters(filepath):
     params = {}
+    print("Reading", filepath)
     with open(filepath, 'r') as f:
         for line in f:
             if line.strip():
@@ -36,7 +37,7 @@ def plot_simulation(stats_file, params_file, output_dir="plots"):
 
     if not params["recovered_enabled"] and not params["exposed_enabled"]:
         sim_type = "SIS"
-    if params["recovered_enabled"] and params["exposed_enabled"]:
+    elif params["recovered_enabled"] and params["exposed_enabled"]:
         sim_type = "SEIR"
     elif params["recovered_enabled"]:
         sim_type = "SIRS"

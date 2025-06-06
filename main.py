@@ -17,10 +17,9 @@ n_recovered = None
 person_size = None
 recovered_enabled = None  # SIS / SIRS switch
 fast_mode = None
-exposed_enabled = None # E toggle
+exposed_enabled = None  # E toggle
 incubation_time = None
-quarantine_percentage = None 
-
+quarantine_percentage = None
 
 
 class Color(Enum):
@@ -28,7 +27,7 @@ class Color(Enum):
     RED = (255, 0, 0)
     BLUE = (0, 0, 255)
     WHITE = (255, 255, 255)
-    YELLOW = (255, 255, 0) # EXPOSED
+    YELLOW = (255, 255, 0)  # EXPOSED
 
 
 class PersonState(Enum):
@@ -159,26 +158,26 @@ class Simulation:
 
         d = datetime.datetime.now()
 
-        csvfile = open('simulation_stats-{date:%Y-%m-%d_%H_%M_%S}.csv'.format(date=d), 'w', newline='')
+        csvfile = open('simulation_stats-{:%Y-%m-%d_%H_%M_%S}_{}.csv'.format(d, f"{d.microsecond // 1000:03d}"), 'w', newline='')
         writer = csv.writer(csvfile)
         writer.writerow(['frame', 'susceptible', 'exposed', 'infected', 'recovered', 'dead_this_frame', 'total_deaths'])
 
-        parametersfile = open('simulation_parameters-{date:%Y-%m-%d_%H_%M_%S}.txt'.format(date=d), 'w', newline='')
+        parametersfile = open('simulation_parameters-{:%Y-%m-%d_%H_%M_%S}_{}.txt4'.format(d, f"{d.microsecond // 1000:03d}"), 'w', newline='')
         parametersfile.write("boundary " + str(boundary) +
-                            "\nmortality_rate " + str(mortality_rate) +
-                            "\ndeath_time " + str(death_time) +
-                            "\nsusceptible_again_time " + str(susceptible_again_time) +
-                            "\nn_susceptible " + str(n_susceptible) +
-                            "\nn_infected " + str(n_infected) +
-                            "\nn_recovered " + str(n_recovered) +
-                            "\nperson_size " + str(person_size) +
-                            "\nrecovered_enabled " + str(recovered_enabled) +
-                            "\nfast_mode " + str(fast_mode) +
-                            "\nexposed_enabled " + str(exposed_enabled) +
-                            "\nincubation_time " + str(incubation_time) +
-                            "\nquarantine_percentage " + str(quarantine_percentage)
-                            )
-        
+                             "\nmortality_rate " + str(mortality_rate) +
+                             "\ndeath_time " + str(death_time) +
+                             "\nsusceptible_again_time " + str(susceptible_again_time) +
+                             "\nn_susceptible " + str(n_susceptible) +
+                             "\nn_infected " + str(n_infected) +
+                             "\nn_recovered " + str(n_recovered) +
+                             "\nperson_size " + str(person_size) +
+                             "\nrecovered_enabled " + str(recovered_enabled) +
+                             "\nfast_mode " + str(fast_mode) +
+                             "\nexposed_enabled " + str(exposed_enabled) +
+                             "\nincubation_time " + str(incubation_time) +
+                             "\nquarantine_percentage " + str(quarantine_percentage)
+                             )
+
         frame_count = 0
         total_deaths = 0
         try:
@@ -233,6 +232,16 @@ class Simulation:
                     person.render()
                     screen.blit(person.image, person.rect)
 
+                # Early stop
+                early_stop = True
+                for i in range(1, len(self.people)):
+                    if self.people[i-1].state == PersonState.EXPOSED or self.people[i-1].state == PersonState.INFECTED or \
+                            self.people[i].state == PersonState.EXPOSED or self.people[i].state == PersonState.INFECTED:
+                        early_stop = False
+                        break
+                if early_stop:
+                    break
+
                 if not fast_mode:
                     clock.tick(30)
                 pygame.display.flip()
@@ -240,6 +249,7 @@ class Simulation:
             parametersfile.close()
             csvfile.close()
             pygame.quit()
+
 
 def str2bool(v):
     if isinstance(v, bool):
@@ -251,6 +261,7 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError("Boolean value expected.")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Simulation Configuration")
 
@@ -261,7 +272,7 @@ if __name__ == "__main__":
                         help="Time after which recovered become susceptible")
     parser.add_argument("--n_susceptible", type=int, default=40, help="Initial number of susceptible individuals")
     parser.add_argument("--n_infected", type=int, default=10, help="Initial number of infected individuals")
-    parser.add_argument("--n_recovered", type=int, default=3, help="Initial number of recovered individuals")
+    parser.add_argument("--n_recovered", type=int, default=0, help="Initial number of recovered individuals")
     parser.add_argument("--person_size", type=int, default=20, help="Size of each person in the simulation")
     parser.add_argument("--recovered_enabled", type=str2bool, default=True,
                         help="Enable recovered state (True for SIRS, False for SIS)")
