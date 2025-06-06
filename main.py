@@ -162,7 +162,7 @@ class Simulation:
         writer = csv.writer(csvfile)
         writer.writerow(['frame', 'susceptible', 'exposed', 'infected', 'recovered', 'dead_this_frame', 'total_deaths'])
 
-        parametersfile = open('simulation_parameters-{:%Y-%m-%d_%H_%M_%S}_{}.txt4'.format(d, f"{d.microsecond // 1000:03d}"), 'w', newline='')
+        parametersfile = open('simulation_parameters-{:%Y-%m-%d_%H_%M_%S}_{}.txt'.format(d, f"{d.microsecond // 1000:03d}"), 'w', newline='')
         parametersfile.write("boundary " + str(boundary) +
                              "\nmortality_rate " + str(mortality_rate) +
                              "\ndeath_time " + str(death_time) +
